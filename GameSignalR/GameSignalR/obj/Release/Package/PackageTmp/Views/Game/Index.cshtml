@@ -1,0 +1,118 @@
+﻿ @*  =====================================================================
+     Fabio De Gioia & Sandro Vecchiarelli  
+     Teroldego Race ....  COPYRIGHT 2014
+    ----------------------------------------------------------------------
+    *     blog http://www.fabiodegioia.com/
+    * linkedin https://www.linkedin.com/pub/fabio-de-gioia/25/489/14b
+    *    email fabio.degioia@gmail.com / fabio@fabiodegioia.com
+    *   ------------------------------------------------------------------
+    *     blog http://www.sandrovecchiarelli.com/
+    * linkedin https://www.linkedin.com/pub/sandro-vecchiarelli/7/b9b/a39
+    *    email sandrov@live.it
+    *   ------------------------------------------------------------------
+    ======================================================================
+*@
+
+
+@{
+    ViewBag.Title = "Index";
+}
+
+    <div class="present">
+            <button class="closePresent">X</button>
+            <p> Fabio De Gioia & Sandro Vecchiarelli </p>
+            <p>presentano</p>
+            <p class="title">Teroldego Race</p>
+            <p>realizzato con SignalR 2.0</p>
+    </div>
+    <div class="command">
+        <div class="start">Start</div>
+        <div class="reset">Reset</div>
+    </div>
+    <div class="container">
+        <ul id="discussion"></ul>
+    </div>
+    @section scripts {
+        <!--Script references. -->
+        <!--The jQuery library is required and is referenced by default in _Layout.cshtml. -->
+        <!--Reference the SignalR library. -->
+        <script src="~/Scripts/jquery.signalR-2.1.2.min.js"></script>
+        <script src="~/signalr/hubs"></script>
+        <!--SignalR script to update the chat page and send messages.-->
+        <script>
+            $('.closePresent').on("click", function() { $('.present').hide(); });
+            $('.start').on("click", function () {
+                game.server.start();
+            });
+
+            $('.reset').on("click", function () {
+                game.server.resetGame();
+                gameObj.labyrinth.show();
+
+            });
+
+            // Reference the auto-generated proxy for the hub.
+            var game = $.connection.gameHub;
+
+            // Metodo chiamato dal server per lo spostamento pedina
+            game.client.movePedina = function (name, direction) {
+                gameObj.labyrinth.moveBalloon(name, direction);
+            };
+
+            // Metodo chiamato dal server per aggiungere una pedina selezionata
+            game.client.newPedina = function (name) {
+                var seacWrapAll, seacItemOuter, seacItemInner;
+                seacWrapAll = (!$('.metro-notify-container').length) ? $('<div></div>').addClass('metro-notify-container').appendTo('body') : $('.metro-notify-container');
+                seacItemOuter = $('<div></div>').addClass('metro-notify-item-wrapper');
+                seacItemInner = $('<div></div>').hide().appendTo(seacWrapAll).html('<div class="balloon ' + name + '" data-color="' + name + '"></div>').animate({ opacity: 'show' }, 500).wrap(seacItemOuter);
+                gameObj.balloons.add(name);
+            };
+
+            // Metodo chiamato dal server per rimuovere la pedina
+            game.client.removePedina = function (name) {
+                var obj = $("." + name);
+                gameObj.balloons.remove(name);
+                obj.animate({ opacity: '0' }, 600, function () {
+                    obj.parent().animate({ height: '0px' }, 300, function () {
+                        obj.parent().remove();
+                    });
+                });
+            };
+
+            // utilizzo della query string che in fase di evento connect aggiunge la presente come console
+            $.connection.hub.qs = { 'game': 'console' };
+            $.connection.hub.start().done(function () {
+                $('#sendmessage').click(function () {
+                    game.server.resetGame();
+                });
+            });
+            //// This optional function html-encodes messages for display in the page.
+            //function htmlEncode(value) {
+            //    var encodedValue = $('<div />').text(value).html();
+            //    return encodedValue;
+            //}
+        </script>
+
+        <script src="~/Scripts/GameBalloons.js"></script>
+
+        <script>
+            gameObj.labyrinth.show();
+
+            // ascolta se una pedina ha raggiunto il Teroldego e lo comunica al server 
+            $(document).on("gameover", {
+                nameEvent: "winner"
+            }, function (event, winnerName) {
+                game.server.gameover(winnerName);
+            });
+
+            // ascolta se ci sono degli scontri tra pedine e li comunica al server 
+            $(document).on("boom", {
+                nameEvent: "boom"
+            }, function (event, balloon1, balloon2) {
+                console.log(event.data.nameEvent);
+                game.server.boomPedina(balloon1);
+                game.server.boomPedina(balloon2);
+            });
+
+        </script>
+    }

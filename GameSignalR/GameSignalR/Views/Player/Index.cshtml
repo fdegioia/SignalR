@@ -1,0 +1,159 @@
+﻿@*  =====================================================================
+     Author:   Fabio De Gioia 
+     Project:  Guinness Race
+    ----------------------------------------------------------------------
+    *     blog http://www.fabiodegioia.com/
+    *    email fabio.degioia@gmail.com / fabio@fabiodegioia.com
+    *   ------------------------------------------------------------------
+    ======================================================================
+*@
+
+@{
+    ViewBag.Title = "Player";
+}
+
+<div class="divMessage">
+    <h1 class="message"></h1>
+</div>
+<div class="balloons">
+    <div class="balloon red noDisplay" data-color="red"></div>
+    <div class="balloon blue noDisplay" data-color="blue"></div>
+    <div class="balloon yellow noDisplay" data-color="yellow"></div>
+    <div class="balloon green noDisplay" data-color="green"></div>
+    <div class="balloon violet noDisplay" data-color="violet"></div>
+    <div class="balloon orange noDisplay" data-color="orange"></div>
+    <div class="balloon fuxia noDisplay" data-color="fuxia"></div>
+    <div class="balloon azure noDisplay" data-color="azure"></div>
+    <div class="balloon blueviolet noDisplay" data-color="blueviolet"></div>
+    <div class="balloon marron noDisplay" data-color="marron"></div>
+</div>
+<div class="gamepad">
+    <h2>Muovi la tua pedina<br />Good luck!</h2>
+    <div class="row">
+        <div class="arrow up" data-direction="up"><img src="~/Images/up.png" /></div>
+    </div>
+    <div class="row">
+        <div class="arrow left" data-direction="left"><img src="~/Images/left.png" /></div>
+        <div class="arrow right" data-direction="right"><img src="~/Images/right.png" /></div>
+    </div>
+    <div class="row">
+        <div class="arrow down" data-direction="down"><img src="~/Images/down.png" /></div>
+    </div>
+</div>
+@section scripts {
+    <!--Script references. -->
+    <!--The jQuery library is required and is referenced by default in _Layout.cshtml. -->
+    <!--Reference the SignalR library. -->
+    <script src="~/Scripts/jquery.signalR-2.1.2.min.js"></script>
+
+    <script src="~/signalr/hubs"></script>
+    <!--SignalR script to update the chat page and send messages.-->
+    <script>
+        (function () {
+            $(".gamepad").hide();
+            $(".balloons").hide();
+            var end = false;
+            var myBalloon = "";
+
+            // Reference the auto-generated proxy for the hub.
+            var game = $.connection.gameHub;
+
+            game.client.showBalloon = function (name) {
+                if (myBalloon == "" && !end) {
+                    $(".message").text("Select your pawn");
+                    $(".gamepad").hide();
+                    $(".balloons").show();
+                    $("." + name).unbind("click");
+                    $("." + name).show().on("click", function () {
+                        if (myBalloon.length == 0) assignBalloon(this)
+                    });
+                }
+            };
+
+            // Server invoke this method to notify winner!
+            game.client.showWinner = function (name) {
+                $(".balloon").hide();
+                $(".gamepad").hide();
+                $(".message").text("The pawn " + name + " winner !!!");
+
+            };
+
+            // Server invoke this method to notify collision occured
+            game.client.boomPedina = function () {
+                $(".balloon").hide();
+                $(".gamepad").hide();
+                myBalloon = "";
+                end = true;
+                $("body").removeClass();
+                $(".message").text("BOOM! ...out of game!");
+            };
+
+            // Server invoke this method to hide pawn selected and not more available
+            game.client.assignedNewBaloons = function (name, count) {
+                if (!end) {
+                    $('.' + name).hide();
+                    if (count > 9 && myBalloon == "") {
+                        $(".balloons").show();
+                        $(".message").text("Now all the pawns have been assigned ... wait a collision! :)");
+                    }
+                }
+            };
+
+
+            // Server notify that there aren't pawns available
+            game.client.showNoBalloons = function () {
+                if (!end) {
+                    $(".balloons").show();
+                    $(".message").text("Now all the pawns have been assigned ... wait a collision! :)");
+                }
+            };
+
+            // Assign pawn to user
+            game.client.assignedBallon = function (balloon) {
+                if (!end) {
+                    myBalloon = balloon;
+                    $("body").addClass(balloon);
+                    $(".balloons").hide();
+                    $(".message").text("Warms the fingers and Get ready to go!");
+                }
+            };
+
+            // Start game!
+            game.client.startgame = function () {
+                if (!end) {
+                    $(".message").text("");
+                    $(".balloons").hide();
+                    $(".gamepad").show();
+                    // Enable click events for directional keys
+                    $(".arrow").each(function (index, element) {
+                        $(element).on("click", function () {
+                            game.server.moveBalloon($(element).data("direction"), myBalloon);
+                        });
+                    });
+                }
+            };
+            // Server notify reset game
+            game.client.resetgame = function () {
+                $("body").removeClass(myBalloon);
+                myBalloon = "";
+                end = false;
+                game.server.getFreeBalloons();
+            };
+
+            // we use querystring to communicate that we are "player"
+            $.connection.hub.qs = { 'game': 'player' };
+            $.connection.hub.start().done(function () {
+
+                // ask server all pawns available
+                game.server.getFreeBalloons();
+            });
+
+            // ask server for available clicked pawn
+            function assignBalloon(element) {
+                if (!end) {
+                    game.server.assignBalloon($(element).data("color"));
+                }
+            }
+        })();
+    </script>
+}

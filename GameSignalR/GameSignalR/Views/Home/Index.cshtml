@@ -1,0 +1,102 @@
+﻿@*  =====================================================================
+     Author:   Fabio De Gioia
+     Project:  Guinness Race
+    ----------------------------------------------------------------------
+    *     blog http://www.fabiodegioia.com/
+    *    email fabio.degioia@gmail.com / fabio@fabiodegioia.com
+    *
+    ======================================================================
+*@
+
+@{
+    ViewBag.Title = "Index";
+}
+
+<div class="command">
+    <div class="start">Start</div>
+    <div class="reset">Reset</div>
+</div>
+<div class="container">
+    <ul id="discussion"></ul>
+</div>
+
+@section scripts {
+
+    <!--Script references. -->
+    <!--The jQuery library is required and is referenced by default in _Layout.cshtml. -->
+    <!--Reference the SignalR library. -->
+    <script src="~/Scripts/jquery.signalR-2.1.2.min.js"></script>
+    <script src="~/signalr/hubs"></script>
+    <script src="~/Scripts/GameBalloons.js"></script>
+
+    <!--SignalR script to update the chat page and send messages.-->
+    <script>
+        (function () {
+            $('.closePresent').on("click", function () { $('.present').hide(); });
+            $('.start').on("click", function () {
+                game.server.start();
+            });
+
+            $('.reset').on("click", function () {
+                game.server.resetGame();
+                gameObj.labyrinth.show();
+
+            });
+
+            // Reference the auto-generated proxy for the hub.
+            var game = $.connection.gameHub;
+
+            // Server invoke this method to notify new position pawn
+            game.client.movePedina = function (name, direction) {
+                gameObj.labyrinth.moveBalloon(name, direction);
+            };
+
+            // Server invoke this method to add new pawn
+            game.client.newPedina = function (name) {
+                var seacWrapAll, seacItemOuter, seacItemInner;
+                seacWrapAll = (!$('.metro-notify-container').length) ? $('<div></div>').addClass('metro-notify-container').appendTo('body') : $('.metro-notify-container');
+                seacItemOuter = $('<div></div>').addClass('metro-notify-item-wrapper');
+                seacItemInner = $('<div></div>').hide().appendTo(seacWrapAll).html('<div class="balloon ' + name + '" data-color="' + name + '"></div>').animate({ opacity: 'show' }, 500).wrap(seacItemOuter);
+                gameObj.balloons.add(name);
+            };
+
+            // Server invoke this method to remove pawn
+            game.client.removePedina = function (name) {
+                var obj = $("." + name);
+                gameObj.balloons.remove(name);
+                obj.animate({ opacity: '0' }, 600, function () {
+                    obj.parent().animate({ height: '0px' }, 300, function () {
+                        obj.parent().parent().remove();
+                    });
+                });
+            };
+
+            // registry on server -> game console
+            $.connection.hub.qs = { 'game': 'console' };
+            $.connection.hub.start().done(function () {
+                $('#sendmessage').click(function () {
+                    game.server.resetGame();
+                });
+            });
+
+            gameObj.labyrinth.show();
+
+            // listen event gameover
+            $(document).on("gameover", {
+                nameEvent: "winner"
+            }, function (event, winnerName) {
+                game.server.gameover(winnerName);
+            });
+
+            // listen event collision occured
+            $(document).on("boom", {
+                nameEvent: "boom"
+            }, function (event, balloon1, balloon2) {
+                console.log(event.data.nameEvent);
+                game.server.boomPedina(balloon1);
+                game.server.boomPedina(balloon2);
+            });
+        })();
+    </script>
+
+}

@@ -1,0 +1,169 @@
+﻿@*  =====================================================================
+     Author Fabio De Gioia & Sandro Vecchiarelli
+            Teroldego Race  ....  Copyright 2014
+    ----------------------------------------------------------------------
+    *     blog http://www.fabiodegioia.com/
+    * linkedin https://www.linkedin.com/pub/fabio-de-gioia/25/489/14b
+    *    email fabio.degioia@gmail.com / fabio@fabiodegioia.com
+    *   ------------------------------------------------------------------
+    *     blog http://www.sandrovecchiarelli.com/
+    * linkedin https://www.linkedin.com/pub/sandro-vecchiarelli/7/b9b/a39
+    *    email sandrov@live.it
+    *   ------------------------------------------------------------------
+    ======================================================================
+*@
+
+@{
+    ViewBag.Title = "SignalR";
+}
+
+<div class="divMessage">
+    <h1 class="message">Seleziona la tua pedina</h1>
+</div>
+<div class="balloons">
+    <div class="balloon red noDisplay" data-color="red"></div>
+    <div class="balloon blue noDisplay" data-color="blue"></div>
+    <div class="balloon yellow noDisplay" data-color="yellow"></div>
+    <div class="balloon green noDisplay" data-color="green"></div>
+    <div class="balloon violet noDisplay" data-color="violet"></div>
+    <div class="balloon orange noDisplay" data-color="orange"></div>
+    <div class="balloon fuxia noDisplay" data-color="fuxia"></div>
+    <div class="balloon azure noDisplay" data-color="azure"></div>
+    <div class="balloon blueviolet noDisplay" data-color="blueviolet"></div>
+    <div class="balloon marron noDisplay" data-color="marron"></div>
+</div>
+<div class="gamepad">
+    <h2>Muovi la tua pedina<br />Good luck!</h2>
+    <div class="row">
+        <div class="arrow up" data-direction="up"><img src="~/Images/up.png" /></div>
+    </div>
+    <div class="row">
+        <div class="arrow left" data-direction="left"><img src="~/Images/left.png" /></div>
+        <div class="arrow right" data-direction="right"><img src="~/Images/right.png" /></div>
+    </div>
+    <div class="row">
+        <div class="arrow down" data-direction="down"><img src="~/Images/down.png" /></div>
+    </div>
+</div>
+    @section scripts {
+        <!--Script references. -->
+        <!--The jQuery library is required and is referenced by default in _Layout.cshtml. -->
+        <!--Reference the SignalR library. -->
+        <script src="~/Scripts/jquery.signalR-2.1.2.min.js"></script>
+
+        <script src="~/signalr/hubs"></script>
+        <!--SignalR script to update the chat page and send messages.-->
+        <script>
+
+            $(".gamepad").hide();
+            $(".balloons").hide();
+            var end = false;
+            var myBalloon = "";
+
+            // Reference the auto-generated proxy for the hub.
+            var game = $.connection.gameHub;
+
+            game.client.showBalloon = function (name) {
+                if (myBalloon == "" && !end) {
+                    $(".message").text("Seleziona la Pedina!");
+                    $(".gamepad").hide();
+                    $(".balloons").show();
+                    $("." + name).unbind("click");
+                    $("." + name).show().on("click", function () {
+                        if (myBalloon.length == 0) assignBalloon(this)
+                    });
+                }
+            };
+
+            // Il server chiama questo metodo per notificare il Vincitore
+            game.client.showWinner = function (name) {
+                $(".balloon").hide();
+                $(".gamepad").hide();
+                $(".message").text("La pedina " + name + " ha vinto !!!");
+
+            };
+
+            // Il server chiama questo metodo per avvisare dello scontro avvenuto
+            game.client.boomPedina = function () {
+                $(".balloon").hide();
+                $(".gamepad").hide();
+                myBalloon = "";
+                end = true;
+                $(".message").text("BOOM! ...sei fuori dal gioco!");
+            };
+
+            // quando un utente seleziona la pedina, viene richiamato
+            // questo metodo per nascondere la pedina non più disponibile
+            game.client.assignedNewBaloons = function (name, count) {
+                if (!end) {
+                    $('.' + name).hide();
+                    if (count > 9 && myBalloon == "") {
+                        $(".balloons").show();
+                        $(".message").text("Al momento tutte le pedine sono state assegnate... attendi una eliminazione! :)");
+                    }
+                }
+            };
+
+
+            // Per gli utenti che si collegano e non vi sono più disponibili pedine
+            game.client.showNoBalloons = function () {
+                if (!end) {
+                    $(".balloons").show();
+                    $(".message").text("Al momento tutte le pedine sono state assegnate... attendi una eliminazione! :)");
+                }
+            };
+
+            // Assegna la pedina all'utente
+            game.client.assignedBallon = function (balloon) {
+                if (!end) {
+                    myBalloon = balloon;
+                    $("body").addClass(balloon);
+                    $(".balloons").hide();
+                    $(".message").text("Scalda le dita e tieniti pronto al via!");
+                }
+            };
+
+            // Dalla console viene dato il via alla corsa!
+            game.client.startgame = function () {
+                if (!end) {
+                    $(".message").text("");
+                    $(".balloons").hide();
+                    $(".gamepad").show();
+                    // Abilita gli eventi dei click sulle 4 freccie direzionali
+                    $(".arrow").each(function (index, element) {
+                        $(element).on("click", function () {
+                            game.server.moveBalloon($(element).data("direction"), myBalloon);
+                        });
+                    });
+                }
+            };
+            // Dalla console viene dato il reset del game
+            game.client.resetgame = function () {
+                $("body").removeClass(myBalloon);
+                myBalloon = "";
+                end = false;
+                game.server.getFreeBalloons();
+            };
+
+            // Qui viene usata la querystring per comunicare alla connect che siamo "player"
+            $.connection.hub.qs = { 'game': 'player' };
+            $.connection.hub.start().done(function () {
+
+                // richiede le pedine ancora disponibili
+                game.server.getFreeBalloons();
+            });
+
+            // richiede al server la disponibilità della pedina cliccata
+            function assignBalloon(element) {
+                if (!end) {
+                    game.server.assignBalloon($(element).data("color"));
+                }
+            }
+
+            //// This optional function html-encodes messages for display in the page.
+            //function htmlEncode(value) {
+            //    var encodedValue = $('<div />').text(value).html();
+            //    return encodedValue;
+            //}
+        </script>
+    }
